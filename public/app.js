@@ -73,6 +73,7 @@ function renderNav() {
   }
   const links = isLawyer()
     ? `<a class="topnav-link" href="#/browse">Browse needs</a>
+       <a class="topnav-link" href="#/dashboard">Dashboard</a>
        <a class="topnav-link" href="#/chats">Messages</a>`
     : `<a class="topnav-link" href="#/post">Post a need</a>
        <a class="topnav-link" href="#/needs">My needs</a>
@@ -97,12 +98,12 @@ function viewHome() {
         <g transform="rotate(13)"><path d="M-8,0 C5,45 9,95 0,160 C-6,95 -18,45 -8,0 Z"/></g>
       </g>
     </svg>
-    <h1>Ask for a lawyer<br/>without giving up your name.</h1>
+    <h1 class="gradient-text">Ask for a lawyer<br/>without giving up your name.</h1>
     <p class="lead">Post your legal need anonymously. Every attorney who answers is verified against the state bar. You reveal your name and contact only when <em>you</em> decide — no forms sold, no cold calls.</p>
     <p class="lead-cn">匿名发布法律需求,持牌律师主动联系你 — 中英双语,为在美移民与华人社区打造。</p>
     <div class="cta-row">
       <a class="btn btn-gold" href="#/post">I need a lawyer</a>
-      <a class="btn btn-ghost" href="#/signup?role=lawyer" style="color:#fff;border-color:rgba(255,255,255,.4)">I'm an attorney</a>
+      <a class="btn btn-ghost" href="#/signup?role=lawyer">I'm an attorney</a>
     </div>
     <div class="pill-row">
       <span class="pill">🔒 Anonymous by default</span>
@@ -246,6 +247,13 @@ function initHome() {
     });
   }, { threshold: 0.2 });
   reveals.forEach((el) => io.observe(el));
+  // Safety net: if the observer never fires (e.g. 0-height viewport), still
+  // show the final stat numbers so they never get stuck at 0.
+  setTimeout(() => {
+    App.querySelectorAll('.num[data-to]').forEach((el) => {
+      if (!el.dataset.done) el.textContent = (+el.dataset.to).toLocaleString() + (el.dataset.suf || '');
+    });
+  }, 1500);
 }
 function countUp(el) {
   if (!el || el.dataset.done) return;
@@ -350,7 +358,7 @@ function viewPost() {
     <div id="err"></div>
     <div class="form-card wizard">
       <div class="wiz-progress"><div class="wiz-progress-bar" id="wizBar"></div></div>
-      <div class="wiz-meta"><span id="wizStepNum">Step 1 of 4</span> · <span>🔒 Anonymous — no name or contact needed</span></div>
+      <div class="wiz-meta"><span id="wizStepNum">Step 1 of 5</span> · <span>🔒 Anonymous — no name or contact needed</span></div>
       <form id="needForm">
         <div class="step active" data-step="0">
           <h2 class="step-q">What do you need help with?</h2>
@@ -379,6 +387,11 @@ function viewPost() {
             <div class="hint">Don't include your name or contact info — that stays private until you choose to share it.</div>
           </div>
         </div>
+        <div class="step" data-step="4">
+          <h2 class="step-q">Your instant case read</h2>
+          <p class="muted" style="margin-top:-8px">A free AI first look — not legal advice. Verified attorneys give you the real answer.</p>
+          <div id="aiResult"></div>
+        </div>
         <div class="wiz-foot">
           <button type="button" class="btn btn-ghost" id="wizBack" style="visibility:hidden">← Back</button>
           <button type="button" class="btn" id="wizNext">Next →</button>
@@ -399,7 +412,23 @@ function wireWizard(form) {
   const next = document.getElementById('wizNext');
   const submit = document.getElementById('wizSubmit');
   const caseInput = form.elements.case_type;
-  let i = 0;
+  const aiResult = document.getElementById('aiResult');
+  let i = 0, analyzedFor = null;
+
+  async function ensureAnalysis() {
+    const desc = (form.elements.description.value || '').trim();
+    if (desc.length < 20) { aiResult.innerHTML = '<p class="muted">Add a little more detail in the previous step for an instant read.</p>'; return; }
+    if (analyzedFor === desc) return; // already analyzed this exact text
+    analyzedFor = desc;
+    aiResult.innerHTML = spinner;
+    try {
+      const { assessment } = await api('/analyze', { method: 'POST', auth: false, body: { situation: desc } });
+      aiResult.innerHTML = renderAssessment(assessment);
+    } catch {
+      analyzedFor = null; // allow a retry next time the step is shown
+      aiResult.innerHTML = `<div class="alert alert-info">An instant AI read isn't available right now — no problem. Post your need and verified attorneys will review it directly.</div>`;
+    }
+  }
 
   const show = () => {
     steps.forEach((s, idx) => s.classList.toggle('active', idx === i));
@@ -409,6 +438,7 @@ function wireWizard(form) {
     const last = i === total - 1;
     next.style.display = last ? 'none' : '';
     submit.style.display = last ? '' : 'none';
+    if (last) ensureAnalysis();
     const focusable = steps[i].querySelector('input:not([type=hidden]), select, textarea');
     if (focusable) setTimeout(() => focusable.focus(), 60);
   };
@@ -428,6 +458,37 @@ function wireWizard(form) {
   next.onclick = () => { if (validStep()) { i = Math.min(total - 1, i + 1); show(); } };
   back.onclick = () => { i = Math.max(0, i - 1); show(); };
   show();
+}
+
+// Renders the structured assessment from POST /api/analyze.
+function renderAssessment(a) {
+  if (!a || typeof a !== 'object') return '<p class="muted">No analysis available.</p>';
+  const cs = a.case_strength || {};
+  const color = { green: 'var(--green)', amber: 'var(--amber)', red: 'var(--red)' }[cs.color] || 'var(--gold)';
+  const score = Math.max(0, Math.min(100, Number(cs.score) || 0));
+  const sol = a.sol || {};
+  const steps = Array.isArray(a.next_steps) ? a.next_steps.slice(0, 3) : [];
+  const urgent = a.urgency === 'high' || a.urgency === 'critical';
+  return `<div class="ai-card">
+    <div class="ai-row">
+      <div>
+        <div class="muted" style="font-size:12px">Likely case type</div>
+        <strong>${esc(a.case_type || '—')}</strong>
+        ${a.jurisdiction ? `<span class="tag">${esc(a.jurisdiction)}</span>` : ''}
+      </div>
+      ${a.urgency ? `<span class="badge ${urgent ? 'badge-urgent' : 'badge-open'}">${esc(a.urgency)} urgency</span>` : ''}
+    </div>
+    ${cs.label ? `<div class="ai-strength">
+      <div class="ai-strength-head"><span class="muted">Case strength</span><strong style="color:${color}">${esc(cs.label)}${score ? ` · ${score}/100` : ''}</strong></div>
+      <div class="ai-bar"><div class="ai-bar-fill" style="width:${score}%;background:${color}"></div></div>
+      ${cs.summary ? `<p class="muted" style="font-size:13px;margin:8px 0 0">${esc(cs.summary)}</p>` : ''}
+    </div>` : ''}
+    ${sol.expires ? `<div class="ai-sol${sol.urgency === 'high' ? ' hot' : ''}">⏳ <strong>Deadline:</strong> ${esc(sol.expires)} ${sol.statute ? `<span class="muted">(${esc(sol.statute)})</span>` : ''}${sol.warning ? `<div style="font-size:13px;margin-top:4px">${esc(sol.warning)}</div>` : ''}</div>` : ''}
+    ${steps.length ? `<div style="margin-top:14px"><div class="muted" style="font-size:12px;margin-bottom:6px">Suggested next steps</div>
+      <ol class="ai-steps">${steps.map((s) => `<li><strong>${esc(s.action || '')}</strong>${s.deadline ? ` <span class="muted">— ${esc(s.deadline)}</span>` : ''}</li>`).join('')}</ol></div>` : ''}
+    ${a.attorney_note ? `<div class="alert alert-info" style="margin:14px 0 0">⚖️ ${esc(a.attorney_note)}</div>` : ''}
+    <p class="hint" style="margin-top:12px">Automated first look, not legal advice. Post your need to get real answers from verified attorneys.</p>
+  </div>`;
 }
 
 // ---- User: my needs + pitches ----------------------------------------------
@@ -579,6 +640,73 @@ function chatRow(c) {
         <div class="muted" style="font-size:13px">${last ? esc(last.content).slice(0,80) : 'Conversation opened'}</div>
       </div>
       <span class="muted" style="font-size:12px">${timeAgo(c.last_message_at || c.created_at)}</span>
+    </div>
+  </div>`;
+}
+
+// ---- Lawyer dashboard -------------------------------------------------------
+const AVAIL_LABELS = { available: '🟢 Available now', limited: '🟡 Limited availability', next_month: '🔵 Open next month', unavailable: '⚪ Not taking cases' };
+async function viewDashboard() {
+  if (!Store.user) return requireLoginNotice('view your dashboard', '#/signup?role=lawyer');
+  if (!isLawyer()) return roleMismatch('The dashboard is for attorneys.', '#/needs', 'Go to my needs');
+  App.innerHTML = `<div class="wrap"><h1>Dashboard</h1>${spinner}</div>`;
+  try {
+    const [me, mine] = await Promise.all([api('/lawyers/me'), api('/pitches/mine')]);
+    App.querySelector('.wrap').innerHTML = dashboardHtml(me, mine.pitches || []);
+    const sel = document.getElementById('availSelect');
+    if (sel) sel.onchange = async () => {
+      try { await api('/lawyers/me/availability', { method: 'PUT', body: { availability: sel.value } }); toast('Availability updated', 'ok'); }
+      catch (e) { toast(e.message, 'error'); }
+    };
+  } catch (e) { App.querySelector('.wrap').innerHTML = `<h1>Dashboard</h1>${errBox(e)}`; }
+}
+function dashboardHtml(me, pitches) {
+  const accepted = pitches.filter((p) => p.status === 'accepted').length;
+  const quota = me.subscription_active
+    ? '<span class="num">∞</span><div class="lbl">Pro — unlimited pitches</div>'
+    : `<span class="num">${me.pitches_used || 0}<span class="suf">/${me.pitches_limit || 0}</span></span><div class="lbl">Pitches used this month</div>`;
+  const options = Object.entries(AVAIL_LABELS)
+    .map(([v, lbl]) => `<option value="${v}" ${me.availability === v ? 'selected' : ''}>${esc(lbl)}</option>`).join('');
+  const list = !pitches.length
+    ? `<div class="empty">You haven't pitched on any needs yet.<br/><a class="btn btn-gold btn-sm" href="#/browse" style="margin-top:14px">Browse open needs</a></div>`
+    : `<div class="list">${pitches.map(pitchMineRow).join('')}</div>`;
+  return `
+    <div class="section-title"><h1>Dashboard</h1><a class="btn btn-gold btn-sm" href="#/browse">+ Find needs to pitch</a></div>
+    <div class="dash-head">
+      <div class="avatar">${esc(me.avatar_initial || (me.name_en || '?')[0])}</div>
+      <div style="flex:1">
+        <strong style="font-size:18px">${esc(me.name_en)}</strong>${me.name_cn ? ` <span class="muted">${esc(me.name_cn)}</span>` : ''}
+        ${me.bar_verified ? ' <span class="badge badge-verified">✅ Verified</span>' : ''}
+        <div class="muted" style="font-size:13px">${esc(me.city || '')}${me.city ? ', ' : ''}${esc(me.state || '')} · ${esc(me.bar_state)} #${esc(me.bar_number)}</div>
+      </div>
+    </div>
+    <div class="stats" style="margin-top:18px">
+      <div class="stat">${quota}</div>
+      <div class="stat"><span class="num">${pitches.length}</span><div class="lbl">Total pitches sent</div></div>
+      <div class="stat"><span class="num">${accepted}</span><div class="lbl">Accepted &amp; in chat</div></div>
+      <div class="stat"><span class="num">${me.rating || 0}<span class="suf">★</span></span><div class="lbl">${me.review_count || 0} reviews</div></div>
+    </div>
+    <div class="form-card" style="margin:8px 0 24px">
+      <label style="font-weight:600;font-size:14px;display:block;margin-bottom:8px">Your availability (shown to clients)</label>
+      <select id="availSelect">${options}</select>
+    </div>
+    <h2 style="margin-bottom:14px">Your pitches</h2>
+    ${list}`;
+}
+function pitchMineRow(p) {
+  const n = p.needs || {};
+  const statusBadge = { pending: 'badge-open', accepted: 'badge-verified', declined: 'badge-urgent' }[p.status] || 'badge-open';
+  return `<div class="list-item">
+    <div class="meta">
+      <span class="badge badge-open">${esc(n.case_type || 'Case')}</span>
+      ${n.state ? `<span class="badge badge-state">${esc(n.region ? n.region + ', ' : '')}${esc(n.state)}</span>` : ''}
+      <span class="badge ${statusBadge}">${esc(p.status)}</span>
+      <span class="muted" style="font-size:13px">· ${timeAgo(p.sent_at)}</span>
+    </div>
+    <p class="desc">${esc(p.message)}</p>
+    <div class="foot">
+      <span class="muted">${p.fee_type ? esc(p.fee_type) : ''}${p.fee_detail ? ` — ${esc(p.fee_detail)}` : ''}</span>
+      ${p.status === 'accepted' && p.chat_id ? `<a class="btn btn-sm" href="#/chat/${p.chat_id}">Open chat →</a>` : ''}
     </div>
   </div>`;
 }
@@ -822,7 +950,7 @@ function router() {
   const sync = {
     '': viewHome, 'how': viewHow, 'login': viewLogin, 'signup': viewSignup, 'post': viewPost,
   };
-  const asyncViews = { 'needs': viewNeeds, 'browse': () => viewBrowse(), 'chats': viewChats };
+  const asyncViews = { 'needs': viewNeeds, 'browse': () => viewBrowse(), 'chats': viewChats, 'dashboard': viewDashboard };
 
   if (asyncViews[seg1]) { asyncViews[seg1](); return; }
   const render = sync[seg1] || viewHome;
@@ -832,22 +960,25 @@ function router() {
 }
 
 // ---- Theme (dark mode) ------------------------------------------------------
+// Dark is the default; light is an explicit opt-in (data-theme="light").
 function effectiveTheme() {
-  return document.documentElement.dataset.theme
-    || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+}
+function applyTheme(t) {
+  if (t === 'light') document.documentElement.dataset.theme = 'light';
+  else document.documentElement.removeAttribute('data-theme');
 }
 function paintThemeToggle() {
   const btn = document.getElementById('themeToggle');
   if (btn) btn.textContent = effectiveTheme() === 'dark' ? '☀️' : '🌙';
 }
 function initTheme() {
-  const saved = localStorage.getItem('lc_theme');
-  if (saved === 'dark' || saved === 'light') document.documentElement.dataset.theme = saved;
+  applyTheme(localStorage.getItem('lc_theme'));
   paintThemeToggle();
   const btn = document.getElementById('themeToggle');
   if (btn) btn.onclick = () => {
     const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
+    applyTheme(next);
     localStorage.setItem('lc_theme', next);
     paintThemeToggle();
   };

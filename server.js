@@ -68,10 +68,10 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc:  ["'self'"],
-      styleSrc:   ["'self'", "'unsafe-inline'"],
+      styleSrc:   ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       imgSrc:     ["'self'", 'data:'],
       connectSrc: ["'self'", 'https:', 'wss:'],
-      fontSrc:    ["'self'", 'data:'],
+      fontSrc:    ["'self'", 'data:', 'https://fonts.gstatic.com'],
     },
   },
   crossOriginEmbedderPolicy: false,
@@ -498,6 +498,16 @@ app.get('/api/needs/:id/pitches', requireAuth, async (req, res) => {
   res.json({ total: pitches.length, pitches });
 });
 
+// GET /api/pitches/mine — Lawyer sees their own pitches (with need context)
+app.get('/api/pitches/mine', requireLawyer, async (req, res) => {
+  const { data, error } = await supabase.from('pitches')
+    .select('id,message,fee_type,fee_detail,status,chat_id,sent_at, needs(case_type,region,state,urgency,status)')
+    .eq('lawyer_id', req.user.id)
+    .order('sent_at', { ascending: false });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ total: (data || []).length, pitches: data || [] });
+});
+
 // ════════════════════════════════════════════════════════════════════════════
 // CHAT ROUTES
 // ════════════════════════════════════════════════════════════════════════════
@@ -706,6 +716,13 @@ app.get('/api/verify/:state/:barNumber', async (req, res) => {
 // ════════════════════════════════════════════════════════════════════════════
 // LAWYER ROUTES
 // ════════════════════════════════════════════════════════════════════════════
+
+// GET /api/lawyers/me — Authenticated lawyer's own profile (incl. quota)
+app.get('/api/lawyers/me', requireLawyer, async (req, res) => {
+  const l = req.lawyer;
+  const remaining = l.subscription_active ? null : Math.max(0, (l.pitches_limit || 0) - (l.pitches_used || 0));
+  res.json({ ...l, pitches_remaining: remaining });
+});
 
 // GET /api/lawyers/:id — Public profile
 app.get('/api/lawyers/:id', async (req, res) => {

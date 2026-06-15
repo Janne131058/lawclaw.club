@@ -41,6 +41,28 @@ The schema's `visa_status` and `name_cn` fields point here.
 - **SimpleCitizen** — immigration form automation.
 - **66law.cn (华律网) / findlaw.cn (找法网)** — China's largest legal Q&A + directory (model reference; different market).
 
+## E. Legal AI tools (a different layer, not a marketplace)
+
+- **Harvey** — enterprise legal AI for large law firms and in-house teams (research,
+  drafting, due diligence). Founded 2022; OpenAI Startup Fund–backed; flagship
+  customers like Allen & Overy and a PwC partnership; multi-billion valuation.
+- **Spellbook, Robin AI, CoCounsel (Thomson Reuters)** — AI contract/drafting copilots
+  sold to lawyers.
+
+These don't compete with LawClaw directly — they sell AI *to lawyers* (B2B). LawClaw
+is consumer-facing (B2C) and uses AI to triage a person's situation and route them to a
+verified human attorney.
+
+| | Harvey | LawClaw |
+|---|---|---|
+| Customer | Law firms / in-house (B2B) | Individuals / immigrants (B2C) |
+| AI's job | Do the lawyer's work | Diagnose your case + match you to a lawyer |
+| Moat | Firm data, enterprise trust | Anonymity, bilingual, bar verification, marketplace network |
+
+**Positioning:** *Harvey is the AI inside the law firm; LawClaw is the AI that gets you
+to the right lawyer.* LawClaw already has a consumer-facing analysis layer
+(`/api/analyze` — statute citations + SOL deadlines) that feeds the matchmaking funnel.
+
 ---
 
 ## Where LawClaw can win
