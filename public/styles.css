@@ -170,6 +170,7 @@ main { flex: 1; }
 .stat .num { font-size: clamp(28px,4vw,40px); font-weight: 800; color: var(--ink); letter-spacing: -1px; line-height: 1; }
 .stat .num .suf { color: var(--gold-dark); }
 .stat .lbl { font-size: 13px; color: var(--muted); margin-top: 8px; }
+.dash-head { display: flex; align-items: center; gap: 14px; }
 
 /* ---- Scroll reveal + card tilt ---- */
 .reveal { opacity: 0; transform: translateY(22px); transition: opacity .6s ease, transform .6s cubic-bezier(.2,.8,.2,1); }

@@ -73,6 +73,7 @@ function renderNav() {
   }
   const links = isLawyer()
     ? `<a class="topnav-link" href="#/browse">Browse needs</a>
+       <a class="topnav-link" href="#/dashboard">Dashboard</a>
        <a class="topnav-link" href="#/chats">Messages</a>`
     : `<a class="topnav-link" href="#/post">Post a need</a>
        <a class="topnav-link" href="#/needs">My needs</a>
@@ -583,6 +584,73 @@ function chatRow(c) {
   </div>`;
 }
 
+// ---- Lawyer dashboard -------------------------------------------------------
+const AVAIL_LABELS = { available: '🟢 Available now', limited: '🟡 Limited availability', next_month: '🔵 Open next month', unavailable: '⚪ Not taking cases' };
+async function viewDashboard() {
+  if (!Store.user) return requireLoginNotice('view your dashboard', '#/signup?role=lawyer');
+  if (!isLawyer()) return roleMismatch('The dashboard is for attorneys.', '#/needs', 'Go to my needs');
+  App.innerHTML = `<div class="wrap"><h1>Dashboard</h1>${spinner}</div>`;
+  try {
+    const [me, mine] = await Promise.all([api('/lawyers/me'), api('/pitches/mine')]);
+    App.querySelector('.wrap').innerHTML = dashboardHtml(me, mine.pitches || []);
+    const sel = document.getElementById('availSelect');
+    if (sel) sel.onchange = async () => {
+      try { await api('/lawyers/me/availability', { method: 'PUT', body: { availability: sel.value } }); toast('Availability updated', 'ok'); }
+      catch (e) { toast(e.message, 'error'); }
+    };
+  } catch (e) { App.querySelector('.wrap').innerHTML = `<h1>Dashboard</h1>${errBox(e)}`; }
+}
+function dashboardHtml(me, pitches) {
+  const accepted = pitches.filter((p) => p.status === 'accepted').length;
+  const quota = me.subscription_active
+    ? '<span class="num">∞</span><div class="lbl">Pro — unlimited pitches</div>'
+    : `<span class="num">${me.pitches_used || 0}<span class="suf">/${me.pitches_limit || 0}</span></span><div class="lbl">Pitches used this month</div>`;
+  const options = Object.entries(AVAIL_LABELS)
+    .map(([v, lbl]) => `<option value="${v}" ${me.availability === v ? 'selected' : ''}>${esc(lbl)}</option>`).join('');
+  const list = !pitches.length
+    ? `<div class="empty">You haven't pitched on any needs yet.<br/><a class="btn btn-gold btn-sm" href="#/browse" style="margin-top:14px">Browse open needs</a></div>`
+    : `<div class="list">${pitches.map(pitchMineRow).join('')}</div>`;
+  return `
+    <div class="section-title"><h1>Dashboard</h1><a class="btn btn-gold btn-sm" href="#/browse">+ Find needs to pitch</a></div>
+    <div class="dash-head">
+      <div class="avatar">${esc(me.avatar_initial || (me.name_en || '?')[0])}</div>
+      <div style="flex:1">
+        <strong style="font-size:18px">${esc(me.name_en)}</strong>${me.name_cn ? ` <span class="muted">${esc(me.name_cn)}</span>` : ''}
+        ${me.bar_verified ? ' <span class="badge badge-verified">✅ Verified</span>' : ''}
+        <div class="muted" style="font-size:13px">${esc(me.city || '')}${me.city ? ', ' : ''}${esc(me.state || '')} · ${esc(me.bar_state)} #${esc(me.bar_number)}</div>
+      </div>
+    </div>
+    <div class="stats" style="margin-top:18px">
+      <div class="stat">${quota}</div>
+      <div class="stat"><span class="num">${pitches.length}</span><div class="lbl">Total pitches sent</div></div>
+      <div class="stat"><span class="num">${accepted}</span><div class="lbl">Accepted &amp; in chat</div></div>
+      <div class="stat"><span class="num">${me.rating || 0}<span class="suf">★</span></span><div class="lbl">${me.review_count || 0} reviews</div></div>
+    </div>
+    <div class="form-card" style="margin:8px 0 24px">
+      <label style="font-weight:600;font-size:14px;display:block;margin-bottom:8px">Your availability (shown to clients)</label>
+      <select id="availSelect">${options}</select>
+    </div>
+    <h2 style="margin-bottom:14px">Your pitches</h2>
+    ${list}`;
+}
+function pitchMineRow(p) {
+  const n = p.needs || {};
+  const statusBadge = { pending: 'badge-open', accepted: 'badge-verified', declined: 'badge-urgent' }[p.status] || 'badge-open';
+  return `<div class="list-item">
+    <div class="meta">
+      <span class="badge badge-open">${esc(n.case_type || 'Case')}</span>
+      ${n.state ? `<span class="badge badge-state">${esc(n.region ? n.region + ', ' : '')}${esc(n.state)}</span>` : ''}
+      <span class="badge ${statusBadge}">${esc(p.status)}</span>
+      <span class="muted" style="font-size:13px">· ${timeAgo(p.sent_at)}</span>
+    </div>
+    <p class="desc">${esc(p.message)}</p>
+    <div class="foot">
+      <span class="muted">${p.fee_type ? esc(p.fee_type) : ''}${p.fee_detail ? ` — ${esc(p.fee_detail)}` : ''}</span>
+      ${p.status === 'accepted' && p.chat_id ? `<a class="btn btn-sm" href="#/chat/${p.chat_id}">Open chat →</a>` : ''}
+    </div>
+  </div>`;
+}
+
 // ---- Chat detail ------------------------------------------------------------
 let chatPoll = null;
 async function viewChat(id) {
@@ -822,7 +890,7 @@ function router() {
   const sync = {
     '': viewHome, 'how': viewHow, 'login': viewLogin, 'signup': viewSignup, 'post': viewPost,
   };
-  const asyncViews = { 'needs': viewNeeds, 'browse': () => viewBrowse(), 'chats': viewChats };
+  const asyncViews = { 'needs': viewNeeds, 'browse': () => viewBrowse(), 'chats': viewChats, 'dashboard': viewDashboard };
 
   if (asyncViews[seg1]) { asyncViews[seg1](); return; }
   const render = sync[seg1] || viewHome;

@@ -146,11 +146,18 @@ All `/api/*` routes return JSON. Authenticated routes need
 | POST   | `/api/chats/:id/review`       | user   | Rate the attorney (1–5)        |
 
 ### Lawyers & verification
-| Method | Path                            | Auth   | Notes                       |
-|--------|---------------------------------|--------|-----------------------------|
-| GET    | `/api/lawyers/:id`              | –      | Public profile              |
-| PUT    | `/api/lawyers/me/availability`  | lawyer | Update availability         |
-| GET    | `/api/verify/:state/:barNumber` | –      | Check a bar license         |
+| Method | Path                            | Auth   | Notes                                  |
+|--------|---------------------------------|--------|----------------------------------------|
+| GET    | `/api/lawyers/me`               | lawyer | Own profile + remaining pitch quota    |
+| GET    | `/api/pitches/mine`             | lawyer | Own pitches (with need context)        |
+| GET    | `/api/lawyers/:id`              | –      | Public profile                         |
+| PUT    | `/api/lawyers/me/availability`  | lawyer | Update availability                    |
+| GET    | `/api/verify/:state/:barNumber` | –      | Check a bar license                    |
+
+> **Social share image:** `public/og-image.svg` is referenced by the Open Graph /
+> Twitter meta tags. Most social scrapers don't render SVG — for full compatibility
+> convert it to a 1200×630 PNG and point the `og:image`/`twitter:image` tags at it:
+> `rsvg-convert -w 1200 -h 630 public/og-image.svg > public/og-image.png`
 
 ---
 
