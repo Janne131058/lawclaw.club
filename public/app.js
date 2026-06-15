@@ -98,12 +98,12 @@ function viewHome() {
         <g transform="rotate(13)"><path d="M-8,0 C5,45 9,95 0,160 C-6,95 -18,45 -8,0 Z"/></g>
       </g>
     </svg>
-    <h1>Ask for a lawyer<br/>without giving up your name.</h1>
+    <h1 class="gradient-text">Ask for a lawyer<br/>without giving up your name.</h1>
     <p class="lead">Post your legal need anonymously. Every attorney who answers is verified against the state bar. You reveal your name and contact only when <em>you</em> decide — no forms sold, no cold calls.</p>
     <p class="lead-cn">匿名发布法律需求,持牌律师主动联系你 — 中英双语,为在美移民与华人社区打造。</p>
     <div class="cta-row">
       <a class="btn btn-gold" href="#/post">I need a lawyer</a>
-      <a class="btn btn-ghost" href="#/signup?role=lawyer" style="color:#fff;border-color:rgba(255,255,255,.4)">I'm an attorney</a>
+      <a class="btn btn-ghost" href="#/signup?role=lawyer">I'm an attorney</a>
     </div>
     <div class="pill-row">
       <span class="pill">🔒 Anonymous by default</span>
@@ -247,6 +247,13 @@ function initHome() {
     });
   }, { threshold: 0.2 });
   reveals.forEach((el) => io.observe(el));
+  // Safety net: if the observer never fires (e.g. 0-height viewport), still
+  // show the final stat numbers so they never get stuck at 0.
+  setTimeout(() => {
+    App.querySelectorAll('.num[data-to]').forEach((el) => {
+      if (!el.dataset.done) el.textContent = (+el.dataset.to).toLocaleString() + (el.dataset.suf || '');
+    });
+  }, 1500);
 }
 function countUp(el) {
   if (!el || el.dataset.done) return;
@@ -900,22 +907,25 @@ function router() {
 }
 
 // ---- Theme (dark mode) ------------------------------------------------------
+// Dark is the default; light is an explicit opt-in (data-theme="light").
 function effectiveTheme() {
-  return document.documentElement.dataset.theme
-    || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+}
+function applyTheme(t) {
+  if (t === 'light') document.documentElement.dataset.theme = 'light';
+  else document.documentElement.removeAttribute('data-theme');
 }
 function paintThemeToggle() {
   const btn = document.getElementById('themeToggle');
   if (btn) btn.textContent = effectiveTheme() === 'dark' ? '☀️' : '🌙';
 }
 function initTheme() {
-  const saved = localStorage.getItem('lc_theme');
-  if (saved === 'dark' || saved === 'light') document.documentElement.dataset.theme = saved;
+  applyTheme(localStorage.getItem('lc_theme'));
   paintThemeToggle();
   const btn = document.getElementById('themeToggle');
   if (btn) btn.onclick = () => {
     const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
+    applyTheme(next);
     localStorage.setItem('lc_theme', next);
     paintThemeToggle();
   };
