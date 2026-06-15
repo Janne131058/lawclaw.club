@@ -289,6 +289,18 @@ textarea { resize: vertical; min-height: 110px; }
 .choice.selected { border-color: var(--gold); background: var(--surface-alt); }
 .wiz-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 26px; }
 
+/* ---- AI case-read card ---- */
+.ai-card { border: 1px solid var(--line); border-radius: 12px; padding: 18px; background: var(--surface-alt); }
+.ai-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.ai-strength { margin-top: 16px; }
+.ai-strength-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; margin-bottom: 6px; }
+.ai-bar { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.ai-bar-fill { height: 100%; border-radius: 999px; transition: width .8s cubic-bezier(.2,.8,.2,1); }
+.ai-sol { margin-top: 14px; padding: 10px 12px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); font-size: 14px; }
+.ai-sol.hot { border-color: var(--red); }
+.ai-steps { margin: 0; padding-left: 18px; font-size: 14px; }
+.ai-steps li { margin-bottom: 6px; }
+
 /* ---- Cursor glow (micro-interaction) ---- */
 .cursor-glow { position: fixed; top: 0; left: 0; width: 26px; height: 26px; border-radius: 50%; pointer-events: none; z-index: 9999; background: radial-gradient(circle, rgba(201,162,75,.45), transparent 70%); mix-blend-mode: screen; will-change: transform; }
 

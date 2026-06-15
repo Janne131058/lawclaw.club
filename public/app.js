@@ -358,7 +358,7 @@ function viewPost() {
     <div id="err"></div>
     <div class="form-card wizard">
       <div class="wiz-progress"><div class="wiz-progress-bar" id="wizBar"></div></div>
-      <div class="wiz-meta"><span id="wizStepNum">Step 1 of 4</span> · <span>🔒 Anonymous — no name or contact needed</span></div>
+      <div class="wiz-meta"><span id="wizStepNum">Step 1 of 5</span> · <span>🔒 Anonymous — no name or contact needed</span></div>
       <form id="needForm">
         <div class="step active" data-step="0">
           <h2 class="step-q">What do you need help with?</h2>
@@ -387,6 +387,11 @@ function viewPost() {
             <div class="hint">Don't include your name or contact info — that stays private until you choose to share it.</div>
           </div>
         </div>
+        <div class="step" data-step="4">
+          <h2 class="step-q">Your instant case read</h2>
+          <p class="muted" style="margin-top:-8px">A free AI first look — not legal advice. Verified attorneys give you the real answer.</p>
+          <div id="aiResult"></div>
+        </div>
         <div class="wiz-foot">
           <button type="button" class="btn btn-ghost" id="wizBack" style="visibility:hidden">← Back</button>
           <button type="button" class="btn" id="wizNext">Next →</button>
@@ -407,7 +412,23 @@ function wireWizard(form) {
   const next = document.getElementById('wizNext');
   const submit = document.getElementById('wizSubmit');
   const caseInput = form.elements.case_type;
-  let i = 0;
+  const aiResult = document.getElementById('aiResult');
+  let i = 0, analyzedFor = null;
+
+  async function ensureAnalysis() {
+    const desc = (form.elements.description.value || '').trim();
+    if (desc.length < 20) { aiResult.innerHTML = '<p class="muted">Add a little more detail in the previous step for an instant read.</p>'; return; }
+    if (analyzedFor === desc) return; // already analyzed this exact text
+    analyzedFor = desc;
+    aiResult.innerHTML = spinner;
+    try {
+      const { assessment } = await api('/analyze', { method: 'POST', auth: false, body: { situation: desc } });
+      aiResult.innerHTML = renderAssessment(assessment);
+    } catch {
+      analyzedFor = null; // allow a retry next time the step is shown
+      aiResult.innerHTML = `<div class="alert alert-info">An instant AI read isn't available right now — no problem. Post your need and verified attorneys will review it directly.</div>`;
+    }
+  }
 
   const show = () => {
     steps.forEach((s, idx) => s.classList.toggle('active', idx === i));
@@ -417,6 +438,7 @@ function wireWizard(form) {
     const last = i === total - 1;
     next.style.display = last ? 'none' : '';
     submit.style.display = last ? '' : 'none';
+    if (last) ensureAnalysis();
     const focusable = steps[i].querySelector('input:not([type=hidden]), select, textarea');
     if (focusable) setTimeout(() => focusable.focus(), 60);
   };
@@ -436,6 +458,37 @@ function wireWizard(form) {
   next.onclick = () => { if (validStep()) { i = Math.min(total - 1, i + 1); show(); } };
   back.onclick = () => { i = Math.max(0, i - 1); show(); };
   show();
+}
+
+// Renders the structured assessment from POST /api/analyze.
+function renderAssessment(a) {
+  if (!a || typeof a !== 'object') return '<p class="muted">No analysis available.</p>';
+  const cs = a.case_strength || {};
+  const color = { green: 'var(--green)', amber: 'var(--amber)', red: 'var(--red)' }[cs.color] || 'var(--gold)';
+  const score = Math.max(0, Math.min(100, Number(cs.score) || 0));
+  const sol = a.sol || {};
+  const steps = Array.isArray(a.next_steps) ? a.next_steps.slice(0, 3) : [];
+  const urgent = a.urgency === 'high' || a.urgency === 'critical';
+  return `<div class="ai-card">
+    <div class="ai-row">
+      <div>
+        <div class="muted" style="font-size:12px">Likely case type</div>
+        <strong>${esc(a.case_type || '—')}</strong>
+        ${a.jurisdiction ? `<span class="tag">${esc(a.jurisdiction)}</span>` : ''}
+      </div>
+      ${a.urgency ? `<span class="badge ${urgent ? 'badge-urgent' : 'badge-open'}">${esc(a.urgency)} urgency</span>` : ''}
+    </div>
+    ${cs.label ? `<div class="ai-strength">
+      <div class="ai-strength-head"><span class="muted">Case strength</span><strong style="color:${color}">${esc(cs.label)}${score ? ` · ${score}/100` : ''}</strong></div>
+      <div class="ai-bar"><div class="ai-bar-fill" style="width:${score}%;background:${color}"></div></div>
+      ${cs.summary ? `<p class="muted" style="font-size:13px;margin:8px 0 0">${esc(cs.summary)}</p>` : ''}
+    </div>` : ''}
+    ${sol.expires ? `<div class="ai-sol${sol.urgency === 'high' ? ' hot' : ''}">⏳ <strong>Deadline:</strong> ${esc(sol.expires)} ${sol.statute ? `<span class="muted">(${esc(sol.statute)})</span>` : ''}${sol.warning ? `<div style="font-size:13px;margin-top:4px">${esc(sol.warning)}</div>` : ''}</div>` : ''}
+    ${steps.length ? `<div style="margin-top:14px"><div class="muted" style="font-size:12px;margin-bottom:6px">Suggested next steps</div>
+      <ol class="ai-steps">${steps.map((s) => `<li><strong>${esc(s.action || '')}</strong>${s.deadline ? ` <span class="muted">— ${esc(s.deadline)}</span>` : ''}</li>`).join('')}</ol></div>` : ''}
+    ${a.attorney_note ? `<div class="alert alert-info" style="margin:14px 0 0">⚖️ ${esc(a.attorney_note)}</div>` : ''}
+    <p class="hint" style="margin-top:12px">Automated first look, not legal advice. Post your need to get real answers from verified attorneys.</p>
+  </div>`;
 }
 
 // ---- User: my needs + pitches ----------------------------------------------
