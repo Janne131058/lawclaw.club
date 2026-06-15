@@ -1,0 +1,176 @@
+{
+  "_note": "Canonical demo library for LawClaw. Consumed by seed.js (populates Supabase) and the frontend (featured attorneys + ticker fallback). All people and cases here are fictional.",
+  "defaultPassword": "LawClawDemo!2026",
+  "clients": [
+    { "email": "client.a@demo.lawclaw.club", "full_name": "Anonymous Client A" },
+    { "email": "client.b@demo.lawclaw.club", "full_name": "Anonymous Client B" },
+    { "email": "client.c@demo.lawclaw.club", "full_name": "Anonymous Client C" },
+    { "email": "client.d@demo.lawclaw.club", "full_name": "Anonymous Client D" }
+  ],
+  "lawyers": [
+    {
+      "email": "wei.chen@demo.lawclaw.club",
+      "name_en": "Wei Chen", "name_cn": "陈伟", "avatar_initial": "陈",
+      "bio_en": "Immigration attorney focused on H-1B, O-1 and employment-based green cards for tech professionals.",
+      "bio_cn": "专注于科技人才 H-1B、O-1 及职业移民绿卡的移民律师。",
+      "city": "New York", "state": "NY", "bar_number": "NY-558201", "bar_state": "NY",
+      "specialties": ["Immigration", "Employment"], "languages": ["Mandarin", "English"],
+      "years_experience": 12, "cases_won": 640, "rating": 4.9, "review_count": 128,
+      "availability": "available", "fee_type": "flat", "fee_detail": "$1,800 flat for H-1B filing",
+      "free_consult": true, "free_consult_min": 20, "subscription_active": true
+    },
+    {
+      "email": "jennifer.wu@demo.lawclaw.club",
+      "name_en": "Jennifer Wu", "name_cn": "吴静怡", "avatar_initial": "吴",
+      "bio_en": "Employment and immigration litigator helping workers with wrongful termination and visa-related disputes.",
+      "bio_cn": "处理不当解雇与签证相关纠纷的劳动与移民诉讼律师。",
+      "city": "San Francisco", "state": "CA", "bar_number": "CA-244119", "bar_state": "CA",
+      "specialties": ["Employment", "Immigration"], "languages": ["Mandarin", "Cantonese", "English"],
+      "years_experience": 9, "cases_won": 310, "rating": 4.8, "review_count": 96,
+      "availability": "limited", "fee_type": "hourly", "fee_detail": "$350/hr",
+      "free_consult": true, "free_consult_min": 30, "subscription_active": true
+    },
+    {
+      "email": "david.kim@demo.lawclaw.club",
+      "name_en": "David Kim", "name_cn": "김민준", "avatar_initial": "K",
+      "bio_en": "Business and startup counsel: entity formation, contracts, fundraising and cross-border deals.",
+      "bio_cn": "企业与初创公司法律顾问:实体设立、合同、融资及跨境交易。",
+      "city": "New York", "state": "NY", "bar_number": "NY-601774", "bar_state": "NY",
+      "specialties": ["Business", "Real Estate"], "languages": ["Korean", "English"],
+      "years_experience": 14, "cases_won": 220, "rating": 4.7, "review_count": 54,
+      "availability": "available", "fee_type": "hourly", "fee_detail": "$420/hr",
+      "free_consult": false, "subscription_active": false
+    },
+    {
+      "email": "maria.gonzalez@demo.lawclaw.club",
+      "name_en": "Maria González", "name_cn": null, "avatar_initial": "M",
+      "bio_en": "Family and immigration attorney handling divorce, custody, and family-based petitions with compassion.",
+      "bio_cn": null,
+      "city": "Los Angeles", "state": "CA", "bar_number": "CA-198332", "bar_state": "CA",
+      "specialties": ["Family", "Immigration"], "languages": ["Spanish", "English"],
+      "years_experience": 16, "cases_won": 870, "rating": 4.9, "review_count": 210,
+      "availability": "available", "fee_type": "flat", "fee_detail": "Flat fees for uncontested matters",
+      "free_consult": true, "free_consult_min": 30, "subscription_active": true
+    },
+    {
+      "email": "robert.lin@demo.lawclaw.club",
+      "name_en": "Robert Lin", "name_cn": "林国华", "avatar_initial": "林",
+      "bio_en": "Personal injury trial lawyer. No fee unless we win. Car accidents, slip-and-fall, workplace injuries.",
+      "bio_cn": "人身伤害出庭律师,胜诉才收费。车祸、滑倒、工伤。",
+      "city": "Houston", "state": "TX", "bar_number": "TX-770045", "bar_state": "TX",
+      "specialties": ["Personal Injury"], "languages": ["Mandarin", "English"],
+      "years_experience": 11, "cases_won": 405, "rating": 4.6, "review_count": 73,
+      "availability": "available", "fee_type": "contingency", "fee_detail": "33% contingency, no win no fee",
+      "free_consult": true, "free_consult_min": 30, "subscription_active": false
+    },
+    {
+      "email": "sarah.patel@demo.lawclaw.club",
+      "name_en": "Sarah Patel", "name_cn": null, "avatar_initial": "S",
+      "bio_en": "Asylum and humanitarian immigration specialist with a 90%+ approval rate on affirmative cases.",
+      "bio_cn": null,
+      "city": "Chicago", "state": "IL", "bar_number": "IL-330918", "bar_state": "IL",
+      "specialties": ["Immigration"], "languages": ["Hindi", "English"],
+      "years_experience": 8, "cases_won": 260, "rating": 4.9, "review_count": 142,
+      "availability": "limited", "fee_type": "flat", "fee_detail": "Sliding scale available",
+      "free_consult": true, "free_consult_min": 20, "subscription_active": true
+    },
+    {
+      "email": "michael.zhang@demo.lawclaw.club",
+      "name_en": "Michael Zhang", "name_cn": "张明", "avatar_initial": "张",
+      "bio_en": "Criminal defense attorney and former prosecutor. DUIs, misdemeanors, and federal matters.",
+      "bio_cn": "刑事辩护律师、前检察官。酒驾、轻罪及联邦案件。",
+      "city": "New York", "state": "NY", "bar_number": "NY-512663", "bar_state": "NY",
+      "specialties": ["Criminal"], "languages": ["Mandarin", "English"],
+      "years_experience": 18, "cases_won": 520, "rating": 4.5, "review_count": 61,
+      "availability": "available", "fee_type": "hourly", "fee_detail": "$500/hr, retainer required",
+      "free_consult": false, "subscription_active": false
+    },
+    {
+      "email": "emily.nakamura@demo.lawclaw.club",
+      "name_en": "Emily Nakamura", "name_cn": "中村恵美", "avatar_initial": "N",
+      "bio_en": "IP and tech-transactions lawyer: trademarks, patents licensing, and SaaS agreements.",
+      "bio_cn": null,
+      "city": "Seattle", "state": "WA", "bar_number": "WA-441208", "bar_state": "WA",
+      "specialties": ["Intellectual Property", "Business"], "languages": ["Japanese", "English"],
+      "years_experience": 10, "cases_won": 180, "rating": 4.8, "review_count": 47,
+      "availability": "next_month", "fee_type": "hourly", "fee_detail": "$390/hr",
+      "free_consult": true, "free_consult_min": 15, "subscription_active": true
+    },
+    {
+      "email": "carlos.rivera@demo.lawclaw.club",
+      "name_en": "Carlos Rivera", "name_cn": null, "avatar_initial": "C",
+      "bio_en": "Real estate attorney for closings, landlord-tenant disputes, and commercial leases.",
+      "bio_cn": null,
+      "city": "Miami", "state": "FL", "bar_number": "FL-225590", "bar_state": "FL",
+      "specialties": ["Real Estate"], "languages": ["Spanish", "English"],
+      "years_experience": 13, "cases_won": 300, "rating": 4.7, "review_count": 88,
+      "availability": "available", "fee_type": "flat", "fee_detail": "$950 flat per closing",
+      "free_consult": false, "subscription_active": false
+    },
+    {
+      "email": "grace.tan@demo.lawclaw.club",
+      "name_en": "Grace Tan", "name_cn": "陈嘉颖", "avatar_initial": "陈",
+      "bio_en": "Estate planning and probate attorney. Wills, trusts, and cross-border inheritance.",
+      "bio_cn": "遗产规划与遗嘱认证律师。遗嘱、信托及跨境继承。",
+      "city": "Boston", "state": "MA", "bar_number": "MA-118827", "bar_state": "MA",
+      "specialties": ["Estate Planning"], "languages": ["Mandarin", "Cantonese", "English"],
+      "years_experience": 15, "cases_won": 410, "rating": 4.9, "review_count": 65,
+      "availability": "available", "fee_type": "flat", "fee_detail": "Estate packages from $1,200",
+      "free_consult": true, "free_consult_min": 30, "subscription_active": true
+    },
+    {
+      "email": "james.obrien@demo.lawclaw.club",
+      "name_en": "James O'Brien", "name_cn": null, "avatar_initial": "J",
+      "bio_en": "Consumer and small-business bankruptcy attorney. Chapter 7 and Chapter 13.",
+      "bio_cn": null,
+      "city": "Phoenix", "state": "AZ", "bar_number": "AZ-309114", "bar_state": "AZ",
+      "specialties": ["Bankruptcy"], "languages": ["English"],
+      "years_experience": 7, "cases_won": 150, "rating": 4.4, "review_count": 39,
+      "availability": "available", "fee_type": "flat", "fee_detail": "$1,500 flat for Chapter 7",
+      "free_consult": true, "free_consult_min": 20, "subscription_active": false
+    },
+    {
+      "email": "linda.huang@demo.lawclaw.club",
+      "name_en": "Linda Huang", "name_cn": "黄丽", "avatar_initial": "黄",
+      "bio_en": "Family-based immigration attorney: marriage green cards, K-1 visas, and citizenship.",
+      "bio_cn": "家庭移民律师:婚姻绿卡、K-1 签证及入籍。",
+      "city": "San Jose", "state": "CA", "bar_number": "CA-277401", "bar_state": "CA",
+      "specialties": ["Immigration", "Family"], "languages": ["Mandarin", "English"],
+      "years_experience": 20, "cases_won": 1100, "rating": 5.0, "review_count": 176,
+      "availability": "available", "fee_type": "flat", "fee_detail": "$2,500 flat for marriage green card",
+      "free_consult": true, "free_consult_min": 30, "subscription_active": true
+    }
+  ],
+  "needs": [
+    { "client": 0, "case_type": "Immigration", "region": "Manhattan", "state": "NY", "language_pref": "Mandarin", "visa_status": "H-1B", "urgency": "high", "description": "My H-1B was not selected in the lottery and my grace period is running out. I need to understand my options (O-1, cap-exempt, change of status) fast." },
+    { "client": 1, "case_type": "Family", "region": "Los Angeles", "state": "CA", "language_pref": "Spanish", "visa_status": "green card", "urgency": "normal", "description": "Going through an uncontested divorce with shared custody of two kids. Looking for someone to handle the paperwork and mediation." },
+    { "client": 2, "case_type": "Personal Injury", "region": "Houston", "state": "TX", "language_pref": "English", "visa_status": "citizen", "urgency": "normal", "description": "Rear-ended at a red light, ongoing back pain and physical therapy. The other driver's insurer is lowballing the settlement." },
+    { "client": 3, "case_type": "Immigration", "region": "Chicago", "state": "IL", "language_pref": "English", "visa_status": "asylum pending", "urgency": "high", "description": "Affirmative asylum applicant with an interview scheduled next month. I need help preparing my declaration and evidence." },
+    { "client": 0, "case_type": "Employment", "region": "San Francisco", "state": "CA", "language_pref": "Mandarin", "visa_status": "H-1B", "urgency": "high", "description": "I was laid off while on H-1B and believe it was retaliation after I reported safety issues. Worried about both the wrongful termination and my status." },
+    { "client": 1, "case_type": "Business", "region": "Brooklyn", "state": "NY", "language_pref": "Korean", "visa_status": "citizen", "urgency": "normal", "description": "Two co-founders starting a SaaS company. Need help with incorporation, a founder agreement, and a SAFE for our first angel investor." },
+    { "client": 2, "case_type": "Criminal", "region": "Queens", "state": "NY", "language_pref": "Mandarin", "visa_status": "green card", "urgency": "high", "description": "First-time DUI arrest, arraignment is in a few days. Concerned about how a conviction could affect my green card renewal." },
+    { "client": 3, "case_type": "Real Estate", "region": "Miami", "state": "FL", "language_pref": "Spanish", "visa_status": "citizen", "urgency": "normal", "description": "Landlord is withholding my security deposit and claiming damages I didn't cause. I have photos and a move-out checklist." },
+    { "client": 0, "case_type": "Estate Planning", "region": "Boston", "state": "MA", "language_pref": "Cantonese", "visa_status": "citizen", "urgency": "normal", "description": "Need a will and a living trust. Some assets are overseas, so I want someone familiar with cross-border inheritance." },
+    { "client": 1, "case_type": "Intellectual Property", "region": "Seattle", "state": "WA", "language_pref": "English", "visa_status": "citizen", "urgency": "normal", "description": "Bootstrapped app startup. Someone is using a confusingly similar name and logo. I want to register my trademark and send a cease-and-desist." },
+    { "client": 2, "case_type": "Bankruptcy", "region": "Phoenix", "state": "AZ", "language_pref": "English", "visa_status": "citizen", "urgency": "normal", "description": "Overwhelmed by credit-card and medical debt after a job loss. Trying to figure out if Chapter 7 is the right move for me." },
+    { "client": 3, "case_type": "Immigration", "region": "San Jose", "state": "CA", "language_pref": "Mandarin", "visa_status": "F-1 OPT", "urgency": "normal", "description": "On F-1 OPT and recently married a U.S. citizen. We want to file for a marriage-based green card and need help avoiding common mistakes." },
+    { "client": 0, "case_type": "Employment", "region": "Austin", "state": "TX", "language_pref": "English", "visa_status": "citizen", "urgency": "normal", "description": "My employer is misclassifying me as a contractor and not paying overtime. I have time records going back a year." },
+    { "client": 1, "case_type": "Family", "region": "San Diego", "state": "CA", "language_pref": "Mandarin", "visa_status": "citizen", "urgency": "high", "description": "Need an emergency custody modification — my ex is planning to relocate out of state with our child without my consent." },
+    { "client": 2, "case_type": "Immigration", "region": "Flushing", "state": "NY", "language_pref": "Mandarin", "visa_status": "B-2", "urgency": "high", "description": "My elderly mother is visiting on a B-2 and had a medical emergency. We may need to extend her stay and understand the implications." },
+    { "client": 3, "case_type": "Business", "region": "Cupertino", "state": "CA", "language_pref": "English", "visa_status": "citizen", "urgency": "normal", "description": "Dispute with a vendor who breached a six-figure services contract. Want to understand whether to negotiate or pursue litigation." }
+  ],
+  "pitches": [
+    { "need": 0, "lawyer": 0, "message": "H-1B not selected is stressful but you have real options. I've moved dozens of clients to O-1 or cap-exempt roles within the grace period. Happy to map out a timeline on a quick call.", "fee_type": "flat", "fee_detail": "$1,800 flat for the petition" },
+    { "need": 0, "lawyer": 11, "message": "If you recently married a citizen, a marriage-based green card may also bridge your status. Let's review which path fits your timeline and budget before the grace period ends.", "fee_type": "flat", "fee_detail": "Free 30-min consult first" },
+    { "need": 1, "lawyer": 3, "message": "Uncontested divorces with shared custody are exactly what I handle daily. I offer flat-fee mediation so there are no surprises, and we can do most of it remotely.", "fee_type": "flat", "fee_detail": "Flat fee for uncontested filing" },
+    { "need": 2, "lawyer": 4, "message": "Insurers always start low. With ongoing PT and documented back injury, your case is worth pursuing. No fee unless we recover — I only get paid when you do.", "fee_type": "contingency", "fee_detail": "33% contingency, no win no fee" },
+    { "need": 3, "lawyer": 5, "message": "Interview prep is where affirmative asylum cases are won or lost. I'll help you build a clear declaration and organize country-condition evidence. I offer a sliding scale.", "fee_type": "flat", "fee_detail": "Sliding scale available" },
+    { "need": 4, "lawyer": 1, "message": "This is two problems at once — a potential retaliation claim and your H-1B status. I handle both. Let's preserve your evidence now and discuss a 60-day plan to protect your status.", "fee_type": "hourly", "fee_detail": "$350/hr, first 30 min free" },
+    { "need": 5, "lawyer": 2, "message": "I've set up many SaaS startups. I can deliver incorporation, a founder agreement, and a clean SAFE as a flat package so you can focus on the raise.", "fee_type": "flat", "fee_detail": "Startup formation package" },
+    { "need": 6, "lawyer": 6, "message": "As a former prosecutor I know how these DUI cases are charged. For green-card holders the immigration consequences matter as much as the criminal outcome — we'll address both.", "fee_type": "hourly", "fee_detail": "$500/hr, retainer required" },
+    { "need": 7, "lawyer": 8, "message": "With photos and a move-out checklist, you're in a strong position on the deposit. Florida law has specific deadlines landlords must meet — let's send a demand that cites them.", "fee_type": "flat", "fee_detail": "$950 flat" },
+    { "need": 8, "lawyer": 9, "message": "Cross-border estates need careful drafting to avoid double taxation and probate abroad. I'll prepare a will and living trust that account for your overseas assets.", "fee_type": "flat", "fee_detail": "Estate package from $1,200" },
+    { "need": 9, "lawyer": 7, "message": "First step is securing your trademark filing date, then a cease-and-desist carries far more weight. I can do both quickly and explain the enforcement options.", "fee_type": "hourly", "fee_detail": "$390/hr" },
+    { "need": 11, "lawyer": 11, "message": "F-1 OPT to marriage green card is a path I handle constantly. The biggest risks are timing and the medical exam — I'll give you a checklist so nothing gets missed.", "fee_type": "flat", "fee_detail": "$2,500 flat" }
+  ]
+}

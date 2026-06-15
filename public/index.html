@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LawClaw — Post your legal need, let verified attorneys come to you</title>
+  <meta name="description" content="Post your legal need anonymously. Verified U.S. attorneys pitch you. You stay private until you choose to share." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="/logo.svg" />
+</head>
+<body>
+  <header class="topbar">
+    <a href="#/" class="brand">
+      <img class="brand-mark" src="/logo.svg" alt="" width="24" height="26" />
+      <span class="brand-word">Law<span class="brand-accent">Claw</span></span>
+    </a>
+    <div class="topbar-right">
+      <button id="themeToggle" class="theme-toggle" aria-label="Toggle dark mode" title="Toggle theme">🌙</button>
+      <nav class="topnav" id="topnav"><!-- rendered by app.js --></nav>
+    </div>
+  </header>
+
+  <main id="app"><!-- views rendered here --></main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div>
+        <strong><img src="/logo.svg" alt="" width="16" height="18" style="vertical-align:-3px" /> LawClaw</strong>
+        <p class="muted">Anonymous legal matchmaking with verified U.S. attorneys.</p>
+      </div>
+      <nav class="footer-links">
+        <a href="#/how">How it works</a>
+        <a href="#/browse">For attorneys</a>
+        <a href="#/post">Post a need</a>
+      </nav>
+    </div>
+    <p class="legal-disclaimer">
+      LawClaw is not a law firm and does not provide legal advice. All legal advice is
+      provided by independent, licensed attorneys. Using LawClaw does not create an
+      attorney–client relationship.
+    </p>
+  </footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

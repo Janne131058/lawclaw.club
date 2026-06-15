@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "lawclaw",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start"],
+      "autoPort": true,
+      "port": 3001
+    }
+  ]
+}

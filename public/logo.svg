@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 40" role="img" aria-label="LawClaw">
+  <g transform="translate(18 20)">
+    <path d="M-3.5,-17 C2,-6 4,6 0,18 C-2.5,6 -8,-6 -3.5,-17 Z" fill="#c9a24b" transform="rotate(-14)"/>
+    <path d="M-3.5,-17 C2,-6 4,6 0,18 C-2.5,6 -8,-6 -3.5,-17 Z" fill="#a9842f"/>
+    <path d="M-3.5,-17 C2,-6 4,6 0,18 C-2.5,6 -8,-6 -3.5,-17 Z" fill="#c9a24b" transform="rotate(14)"/>
+  </g>
+</svg>
