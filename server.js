@@ -140,7 +140,7 @@ app.post('/api/auth/signup/user', async (req, res) => {
 
   const { data, error } = await supabase.auth.admin.createUser({
     email, password,
-    email_confirm: false,
+    email_confirm: true, // app auto-logs-in after signup; mark confirmed so login works
     user_metadata: { role: 'user', full_name },
   });
   if (error) return res.status(400).json({ error: error.message });
@@ -181,7 +181,7 @@ app.post('/api/auth/signup/lawyer', async (req, res) => {
   // 2. Create auth user
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email, password,
-    email_confirm: false,
+    email_confirm: true, // app auto-logs-in after signup; mark confirmed so login works
     user_metadata: { role: 'lawyer', full_name: name_en },
   });
   if (authError) return res.status(400).json({ error: authError.message });
