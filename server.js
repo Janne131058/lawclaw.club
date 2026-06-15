@@ -17,6 +17,7 @@
  */
 
 require('dotenv').config();
+const path       = require('path');
 const express    = require('express');
 const cors       = require('cors');
 const helmet     = require('helmet');
@@ -24,11 +25,46 @@ const rateLimit  = require('express-rate-limit');
 const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
 
+// ── ENV VALIDATION (fail fast) ──────────────────────────────────────────────
+const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
+const missingEnv = REQUIRED_ENV.filter((k) => !process.env[k]);
+if (missingEnv.length) {
+  console.error(`Missing required environment variables: ${missingEnv.join(', ')}`);
+  process.exit(1);
+}
+const EMAIL_ENABLED = !!(process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS);
+if (!EMAIL_ENABLED) console.warn('Email is disabled (EMAIL_HOST/USER/PASS not set) — notifications will be skipped.');
+
 const app = express();
-app.use(express.json());
-app.use(cors({ origin: [process.env.FRONTEND_URL, 'http://localhost:3000'] }));
-app.use(helmet());
-app.use(rateLimit({ windowMs: 60000, max: 120 }));
+app.set('trust proxy', 1); // Railway / proxies — needed for correct rate-limit IPs
+app.use(express.json({ limit: '256kb' }));
+
+// helmet with a CSP that lets the static frontend load its own assets while
+// still talking to the Supabase realtime endpoint over https/wss.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc:  ["'self'"],
+      styleSrc:   ["'self'", "'unsafe-inline'"],
+      imgSrc:     ["'self'", 'data:'],
+      connectSrc: ["'self'", 'https:', 'wss:'],
+      fontSrc:    ["'self'", 'data:'],
+    },
+  },
+}));
+
+const allowedOrigins = [process.env.FRONTEND_URL, 'http://localhost:3000', 'http://localhost:3001'].filter(Boolean);
+app.use(cors({
+  origin(origin, cb) {
+    // allow same-origin / curl (no Origin header) and whitelisted origins
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(new Error('Not allowed by CORS'));
+  },
+}));
+
+// Tighter limit on the API; static assets are unmetered.
+app.use('/api', rateLimit({ windowMs: 60000, max: 120, standardHeaders: true, legacyHeaders: false }));
 
 // ── SUPABASE CLIENT (service role — bypasses RLS for server operations) ──────
 const supabase = createClient(
@@ -44,12 +80,20 @@ const mailer = nodemailer.createTransport({
 });
 
 async function sendEmail(to, subject, html) {
+  if (!EMAIL_ENABLED) return;
   try {
     await mailer.sendMail({ from: `LawClaw <${process.env.FROM_EMAIL}>`, to, subject, html });
   } catch (e) {
     console.error('Email failed:', e.message);
   }
 }
+
+// ── VALIDATION HELPERS ──────────────────────────────────────────────────────
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function isValidEmail(s) { return typeof s === 'string' && EMAIL_RE.test(s); }
+function isStrongEnough(pw) { return typeof pw === 'string' && pw.length >= 8; }
+// Wrap an async route so thrown errors become a 500 instead of crashing.
+const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 // ── AUTH MIDDLEWARE ────────────────────────────────────────────────────────────
 async function requireAuth(req, res, next) {
@@ -91,7 +135,8 @@ function sanitizeNeed(need, level = 'public') {
 // POST /api/auth/signup/user
 app.post('/api/auth/signup/user', async (req, res) => {
   const { email, password, full_name } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  if (!isValidEmail(email)) return res.status(400).json({ error: 'A valid email is required' });
+  if (!isStrongEnough(password)) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
   const { data, error } = await supabase.auth.admin.createUser({
     email, password,
@@ -118,6 +163,8 @@ app.post('/api/auth/signup/lawyer', async (req, res) => {
   if (!email || !password || !name_en || !bar_number || !bar_state) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
+  if (!isValidEmail(email)) return res.status(400).json({ error: 'A valid email is required' });
+  if (!isStrongEnough(password)) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
   // 1. Verify bar license first
   const barVerified = await verifyBarLicense(bar_number, bar_state);
@@ -249,6 +296,18 @@ app.get('/api/needs', requireLawyer, async (req, res) => {
   res.json({ total: count, page: Number(page), results: sanitized });
 });
 
+// GET /api/needs/recent — Public, anonymized feed for the homepage ticker.
+// Returns only non-identifying fields (same as what browsing lawyers see).
+app.get('/api/needs/recent', async (req, res) => {
+  const { data, error } = await supabase.from('needs')
+    .select('case_type,region,state,language_pref,urgency,pitch_count,created_at')
+    .eq('status', 'open')
+    .order('created_at', { ascending: false })
+    .limit(12);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ results: data || [] });
+});
+
 // GET /api/needs/mine — User sees their own needs
 app.get('/api/needs/mine', requireAuth, async (req, res) => {
   const { data, error } = await supabase.from('needs')
@@ -265,8 +324,19 @@ app.get('/api/needs/mine', requireAuth, async (req, res) => {
 app.post('/api/needs/:id/pitch', requireLawyer, async (req, res) => {
   const lawyer = req.lawyer;
 
+  // Reset the monthly quota if the 30-day billing window has rolled over.
+  const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+  const periodStart = lawyer.pitches_period_start ? new Date(lawyer.pitches_period_start).getTime() : 0;
+  if (Date.now() - periodStart >= THIRTY_DAYS) {
+    lawyer.pitches_used = 0;
+    await supabase.from('lawyers')
+      .update({ pitches_used: 0, pitches_period_start: new Date().toISOString() })
+      .eq('id', lawyer.id);
+  }
+  const pitchesUsed = lawyer.pitches_used || 0;
+
   // Check subscription / pitch limit
-  if (!lawyer.subscription_active && lawyer.pitches_used >= lawyer.pitches_limit) {
+  if (!lawyer.subscription_active && pitchesUsed >= lawyer.pitches_limit) {
     return res.status(403).json({
       error: `Free pitch limit reached (${lawyer.pitches_limit}/month). Upgrade to Pro for unlimited pitches.`,
       upgrade_url: `${process.env.FRONTEND_URL}/pricing`,
@@ -275,7 +345,7 @@ app.post('/api/needs/:id/pitch', requireLawyer, async (req, res) => {
 
   // Check need exists and is open
   const { data: need, error: needErr } = await supabase.from('needs')
-    .select('id,status,user_id,case_type').eq('id', req.params.id).single();
+    .select('id,status,user_id,case_type,pitch_count').eq('id', req.params.id).single();
   if (needErr || !need) return res.status(404).json({ error: 'Need not found' });
   if (need.status !== 'open') return res.status(409).json({ error: 'This need is no longer accepting pitches' });
 
@@ -303,9 +373,15 @@ app.post('/api/needs/:id/pitch', requireLawyer, async (req, res) => {
     return res.status(500).json({ error: pitchErr.message });
   }
 
-  // Increment pitches_used
+  // Increment pitches_used (lawyer quota) and the need's public pitch_count
   await supabase.from('lawyers')
-    .update({ pitches_used: lawyer.pitches_used + 1 }).eq('id', lawyer.id);
+    .update({ pitches_used: pitchesUsed + 1 }).eq('id', lawyer.id);
+  await supabase.rpc('increment_pitch_count', { need_id_in: req.params.id })
+    .then(({ error }) => {
+      // Fall back to a read-modify-write if the RPC isn't installed.
+      if (error) return supabase.from('needs')
+        .update({ pitch_count: (need.pitch_count || 0) + 1 }).eq('id', req.params.id);
+    });
 
   // Notify user by email (get user email from auth)
   const { data: userData } = await supabase.auth.admin.getUserById(need.user_id);
@@ -323,7 +399,7 @@ app.post('/api/needs/:id/pitch', requireLawyer, async (req, res) => {
     success: true,
     pitch_id: pitch.id,
     message: 'Pitch sent. You\'ll be notified when the user responds.',
-    pitches_remaining: Math.max(0, lawyer.pitches_limit - lawyer.pitches_used - 1),
+    pitches_remaining: lawyer.subscription_active ? null : Math.max(0, lawyer.pitches_limit - pitchesUsed - 1),
   });
 });
 
@@ -605,6 +681,24 @@ app.post('/api/chats/:id/review', requireAuth, async (req, res) => {
 
 // GET /health
 app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
+
+// ── STATIC FRONTEND ─────────────────────────────────────────────────────────
+// Serve the website from /public. Unknown non-API GETs fall back to index.html
+// so client-side routing works.
+const PUBLIC_DIR = path.join(__dirname, 'public');
+app.use(express.static(PUBLIC_DIR));
+app.get(/^(?!\/api\/).*/, (req, res, next) => {
+  if (req.method !== 'GET') return next();
+  res.sendFile(path.join(PUBLIC_DIR, 'index.html'), (err) => err && next());
+});
+
+// ── 404 + ERROR HANDLERS ────────────────────────────────────────────────────
+app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err.message);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: 'Internal server error' });
+});
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
