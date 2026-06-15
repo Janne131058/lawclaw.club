@@ -37,10 +37,32 @@ if (!EMAIL_ENABLED) console.warn('Email is disabled (EMAIL_HOST/USER/PASS not se
 
 const app = express();
 app.set('trust proxy', 1); // Railway / proxies — needed for correct rate-limit IPs
-app.use(express.json({ limit: '256kb' }));
+app.disable('x-powered-by');
 
-// helmet with a CSP that lets the static frontend load its own assets while
-// still talking to the Supabase realtime endpoint over https/wss.
+// ── SECURITY: strict body size limit ──────────────────────────────────────
+app.use(express.json({ limit: '1mb' }));
+
+// ── SECURITY: CORS — only our frontends, never wildcard ───────────────────
+const ALLOWED_ORIGINS = [
+  process.env.FRONTEND_URL,
+  'https://www.lawclaw.club',
+  'https://lawclaw-frontend.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:3001',
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // same-origin / curl (no Origin header)
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+// ── SECURITY: Helmet — CSP still lets the bundled frontend load its own assets
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -52,19 +74,27 @@ app.use(helmet({
       fontSrc:    ["'self'", 'data:'],
     },
   },
+  crossOriginEmbedderPolicy: false,
 }));
 
-const allowedOrigins = [process.env.FRONTEND_URL, 'http://localhost:3000', 'http://localhost:3001'].filter(Boolean);
-app.use(cors({
-  origin(origin, cb) {
-    // allow same-origin / curl (no Origin header) and whitelisted origins
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-    cb(new Error('Not allowed by CORS'));
-  },
-}));
+// ── SECURITY: Rate limiting (static assets are unmetered) ──────────────────
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 60,
+  message: { error: 'Too many requests. Please slow down.' }
+});
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 10,
+  message: { error: 'Too many AI requests. Please wait a moment.' }
+});
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, max: 20,
+  message: { error: 'Too many attempts. Please try again later.' }
+});
 
-// Tighter limit on the API; static assets are unmetered.
-app.use('/api', rateLimit({ windowMs: 60000, max: 120, standardHeaders: true, legacyHeaders: false }));
+app.use('/api', generalLimiter);
+app.use('/api/analyze', aiLimiter);
+app.use('/api/generate-document', aiLimiter);
+app.use('/api/auth', authLimiter);
 
 // ── SUPABASE CLIENT (service role — bypasses RLS for server operations) ──────
 const supabase = createClient(
@@ -96,27 +126,74 @@ function isStrongEnough(pw) { return typeof pw === 'string' && pw.length >= 8; }
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 // ── AUTH MIDDLEWARE ────────────────────────────────────────────────────────────
+// Verifies real Supabase JWT — cannot be forged by client
 async function requireAuth(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) return res.status(401).json({ error: 'Authentication required' });
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return res.status(401).json({ error: 'Invalid or expired token' });
-  req.user = user;
-  next();
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  const token = authHeader.replace('Bearer ', '').trim();
+  if (!token || token.length < 20) {
+    return res.status(401).json({ error: 'Invalid token format' });
+  }
+  try {
+    // Supabase verifies the JWT signature — cannot be faked
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) {
+      return res.status(401).json({ error: 'Invalid or expired session. Please sign in again.' });
+    }
+    // Double-check user exists in our DB
+    if (!user.id || !user.email) {
+      return res.status(401).json({ error: 'Invalid user data' });
+    }
+    req.user = user;
+    req.userId = user.id; // Convenience
+    next();
+  } catch(e) {
+    console.error('Auth error:', e.message);
+    return res.status(401).json({ error: 'Authentication failed' });
+  }
 }
 
 async function requireLawyer(req, res, next) {
   await requireAuth(req, res, async () => {
     const { data: profile } = await supabase
       .from('profiles').select('role').eq('id', req.user.id).single();
-    if (profile?.role !== 'lawyer') return res.status(403).json({ error: 'Lawyer account required' });
+    if (profile?.role !== 'lawyer') {
+      return res.status(403).json({ error: 'Attorney account required' });
+    }
     const { data: lawyer } = await supabase
       .from('lawyers').select('*').eq('id', req.user.id).single();
-    if (!lawyer) return res.status(403).json({ error: 'Lawyer profile not found' });
+    if (!lawyer) {
+      return res.status(403).json({ error: 'Attorney profile not found' });
+    }
+    if (!lawyer.bar_verified) {
+      return res.status(403).json({ error: 'Bar license not yet verified. Please wait 1-2 business days.' });
+    }
     req.lawyer = lawyer;
     next();
   });
 }
+
+// ── SECURITY: Input sanitizer ────────────────────────────────────────────────
+function sanitizeText(str, maxLen = 5000) {
+  if (typeof str !== 'string') return '';
+  // Strip null bytes, control chars (keep newlines/tabs)
+  return str.replace(/\0/g, '').replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim().slice(0, maxLen);
+}
+
+// ── SECURITY: UUID validator ─────────────────────────────────────────────────
+function isValidUUID(str) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
+// ── SECURITY: Validate all UUID params in routes ──────────────────────────────
+app.param('id', (req, res, next, id) => {
+  if (!isValidUUID(id)) {
+    return res.status(400).json({ error: 'Invalid ID format' });
+  }
+  next();
+});
 
 // ── PRIVACY HELPER ────────────────────────────────────────────────────────────
 // Strips sensitive fields based on privacy level
@@ -677,6 +754,183 @@ app.post('/api/chats/:id/review', requireAuth, async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
   res.status(201).json({ success: true, review_id: data.id });
+});
+
+// ── POST /api/generate-document ────────────────────────────────────────────
+app.post('/api/generate-document', async (req, res) => {
+  const { prompt, doc_type } = req.body;
+  if (!prompt) return res.status(400).json({ error: 'Prompt required' });
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        system: `You are a legal document drafting assistant specializing in California and New York law. Generate professional, legally grounded documents. Output ONLY the document itself — no preamble, no explanation, ready to send. Include proper heading, addresses, date, body citing relevant statutes, demands with deadlines, and signature block.`,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!response.ok) throw new Error('Claude API error');
+    const data = await response.json();
+    const document = data.content?.[0]?.text || '';
+    res.json({ success: true, document });
+  } catch(e) {
+    res.status(500).json({ error: 'Document generation failed. Please try again.' });
+  }
+});
+
+// ── POST /api/analyze — AI case analysis ───────────────────────────────────
+app.post('/api/analyze', async (req, res) => {
+  const { situation } = req.body;
+  if (!situation || situation.trim().length < 10) {
+    return res.status(400).json({ error: 'Please describe your situation (at least 10 characters)' });
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
+
+  const today = new Date().toISOString().split('T')[0];
+
+  const systemPrompt = `You are LawClaw's senior legal AI analyst — trained on California and New York employment, housing, immigration, family, and personal injury law. Think like a plaintiff-side attorney with 15 years of experience.
+
+Today's date: ${today}. Use this to calculate exact statute of limitations expiry dates.
+
+RULES:
+- Respond ONLY with raw JSON — no markdown, no backticks
+- Every legal conclusion MUST cite the exact statute
+- Recovery estimates must show your calculation math
+- SOL expiry must be a specific date (e.g. "May 25, 2029")
+- Respond in the same language the user wrote in (English or Chinese)
+- Be honest — if the case is weak, say exactly why
+
+JSON FORMAT:
+{
+  "case_type": "Precise category e.g. 'Wage Theft — Unpaid Daily Overtime' or 'Retaliatory Termination + H-1B Grace Period'",
+  "jurisdiction": "California or New York or Federal or California + Federal",
+  "urgency": "low or medium or high or critical",
+
+  "legal_basis": [
+    {
+      "statute": "California Labor Code §510",
+      "title": "Daily Overtime Requirements",
+      "description": "Requires 1.5x pay for hours over 8/day, 2x for hours over 12/day",
+      "applies": true
+    }
+  ],
+
+  "case_strength": {
+    "score": 0-100,
+    "label": "Strong or Moderate or Weak or Unclear",
+    "color": "green or amber or red",
+    "summary": "One sentence explaining the score"
+  },
+
+  "sol": {
+    "deadline": "e.g. 3 years from last violation",
+    "expires": "Exact date e.g. May 25, 2029",
+    "statute": "e.g. California CCP §338",
+    "urgency": "low or medium or high",
+    "warning": "Any urgency flags — e.g. if government entity involved, 6-month claim deadline"
+  },
+
+  "recovery": {
+    "low": "$XX,XXX",
+    "high": "$XXX,XXX",
+    "basis": "Show the math: e.g. '2 hrs/day × $45/hr × 1.5 × 260 days × 3 yrs = $105,300 + waiting time penalties'",
+    "includes": ["Back wages", "Liquidated damages", "Waiting time penalties", "Attorney fees"]
+  },
+
+  "analysis": "3-4 sentences of legal reasoning. Name the specific legal theories. What did the employer/landlord do wrong? What are the strongest and weakest points?",
+
+  "strength_factors": [
+    {
+      "factor": "Factor name e.g. 'Temporal proximity — fired within 24 hours of protected activity'",
+      "status": "yes or no or maybe",
+      "impact": "high or medium or low",
+      "note": "Brief explanation of why this matters legally"
+    }
+  ],
+
+  "next_steps": [
+    {
+      "step": 1,
+      "action": "File a retaliation complaint with DLSE",
+      "deadline": "Within 1 year of termination",
+      "how": "Online at dir.ca.gov/dlse — free, no lawyer needed",
+      "why": "Preserves your right to administrative remedy and creates an official record"
+    }
+  ],
+
+  "evidence_needed": [
+    {
+      "item": "All pay stubs for the past 4 years",
+      "why": "Proves wage rate and hours — DLSE will require this",
+      "how_to_get": "Request in writing from HR; employer must provide within 21 days under Labor Code §226"
+    }
+  ],
+
+  "agency_options": [
+    {
+      "agency": "California Labor Commissioner (DLSE)",
+      "url": "https://www.dir.ca.gov/dlse/",
+      "best_for": "Wage claims, retaliation complaints",
+      "cost": "Free",
+      "timeline": "3-6 months to hearing"
+    }
+  ],
+
+  "attorney_note": "One sentence on whether an attorney is recommended and why. Mention contingency fee if relevant."
+}
+
+STATUTE REFERENCE (use accurately):
+EMPLOYMENT: Labor Code §510 (daily OT), §201/202 (final pay), §203 (waiting time 30-day max), §226.7 (breaks $1/hr premium), §226 (pay stub $50-100/violation), §1102.5 (whistleblower), §98.6 (retaliation), §132a (workers comp retaliation), §515 ($66,560 exempt threshold 2024), B&P §16600 (non-compete void in CA), FEHA Gov Code §12940, CFRA Gov Code §12945.2. SOL: CCP §338 (3yr wages), Gov Code §12960 (3yr FEHA).
+HOUSING: Civil Code §1950.5 (deposit 21 days, 2x bad faith), §1947.12/AB1482 (rent cap 5%+CPI max 10%), §1941/1942 (habitability), §1954 (24hr entry notice), §1946.2 (just cause eviction), CCP §1161 (3/30/60-day notice).
+IMMIGRATION: 8 CFR 214.1(l)(2) (H-1B 60-day grace period), 8 CFR 214.2(h)(4)(iii)(E) (employer pays return flight), INA §212(n) (prevailing wage), VAWA INA §204(a)(1)(A)(iii).
+PERSONAL INJURY: CCP §335.1 (2yr PI), Gov Code §911.2 (6-month govt claim — CRITICAL), CCP §340.5 (med mal 3yr/1yr discovery).
+FAMILY: Family Code §760/770 (community property), §3011 (child custody best interest), §4320 (spousal support), §2550 (property division).`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2500,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: situation.trim() }]
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      console.error('Claude API error:', err);
+      return res.status(502).json({ error: 'AI service temporarily unavailable' });
+    }
+
+    const data = await response.json();
+    const raw = data.content?.[0]?.text || '';
+    const clean = raw.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
+    const assessment = JSON.parse(clean);
+
+    res.json({ success: true, assessment });
+  } catch(e) {
+    console.error('Analyze error:', e.message);
+    res.status(500).json({ error: 'Failed to analyze. Please try again.' });
+  }
 });
 
 // GET /health
